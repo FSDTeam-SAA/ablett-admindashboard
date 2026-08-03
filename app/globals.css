@@ -3,3 +3,56 @@
 @tailwind utilities;
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+@keyframes not-found-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes not-found-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 22px rgba(201, 131, 19, 0.16);
+  }
+  50% {
+    text-shadow: 0 0 44px rgba(201, 131, 19, 0.34);
+  }
+}
+
+@keyframes not-found-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.not-found-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 54px 54px;
+}
+
+.not-found-float {
+  animation: not-found-float 3.8s ease-in-out infinite;
+}
+
+.not-found-glow {
+  animation: not-found-glow 3s ease-in-out infinite;
+}
+
+.not-found-line::after {
+  display: block;
+  width: 42%;
+  height: 100%;
+  content: "";
+  background: linear-gradient(90deg, transparent, #c98313, transparent);
+  animation: not-found-scan 2.8s ease-in-out infinite;
+}
