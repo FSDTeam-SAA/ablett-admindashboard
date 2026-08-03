@@ -15,6 +15,10 @@ const headerContent: Record<string, { title: string; description: string }> = {
     description:
       "Manage your service categories and update their content and images.",
   },
+  "/portfolio": {
+    title: "Portfolio Management",
+    description: "Manage project portfolio items displayed on the public website.",
+  },
   "/gallery": {
     title: "Project Gallery",
     description:
@@ -24,6 +28,14 @@ const headerContent: Record<string, { title: string; description: string }> = {
     title: "Contact Inquiries",
     description:
       "View and manage customer inquiries submitted through the website contact form.",
+  },
+  "/faqs": {
+    title: "FAQs Management",
+    description: "Manage common questions displayed on the public website.",
+  },
+  "/settings": {
+    title: "Settings",
+    description: "Manage your profile and password preferences.",
   },
   "/security": {
     title: "Security",
