@@ -9,6 +9,43 @@ import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Load
 
 const toast = ToastPrimitive.createToastManager()
 
+type ToasterPosition =
+  | "top-right"
+  | "top-left"
+  | "top-center"
+  | "bottom-right"
+  | "bottom-left"
+  | "bottom-center"
+
+type ToasterProps = ToastPrimitive.Provider.Props & {
+  richColors?: boolean
+  position?: ToasterPosition
+}
+
+const getToastViewportPositionClassName = (position: ToasterPosition) => {
+  if (position === "top-right") {
+    return "right-4 top-4"
+  }
+
+  if (position === "top-left") {
+    return "left-4 top-4"
+  }
+
+  if (position === "top-center") {
+    return "left-1/2 top-4 -translate-x-1/2"
+  }
+
+  if (position === "bottom-left") {
+    return "bottom-4 left-4"
+  }
+
+  if (position === "bottom-center") {
+    return "bottom-4 left-1/2 -translate-x-1/2"
+  }
+
+  return "bottom-4 right-4"
+}
+
 function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
   return <ToastPrimitive.Provider {...props} />
 }
@@ -22,7 +59,7 @@ function ToastViewport({ className, ...props }: ToastPrimitive.Viewport.Props) {
     <ToastPrimitive.Viewport
       data-slot="toast-viewport"
       className={cn(
-        "pointer-events-none fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-sm outline-none sm:right-4 sm:left-auto sm:mx-0 sm:w-full",
+        "pointer-events-none fixed z-50 flex max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-[420px] flex-col gap-3 outline-none",
         className
       )}
       {...props}
@@ -35,21 +72,10 @@ function Toast({ className, ...props }: ToastPrimitive.Root.Props) {
     <ToastPrimitive.Root
       data-slot="toast"
       className={cn(
-        "group/toast pointer-events-auto absolute right-0 bottom-0 z-[calc(1000-var(--toast-index))] w-full origin-bottom rounded-2xl border bg-popover text-popover-foreground shadow-lg will-change-transform outline-none select-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        "[--gap:0.75rem] [--height:var(--toast-frontmost-height,var(--toast-height))] [--offset-y:calc(var(--toast-offset-y)*-1+calc(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))]",
-        "h-(--height) [transform:translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))] [transition:transform_500ms_cubic-bezier(0.22,1,0.36,1),opacity_500ms,height_150ms]",
-        "after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-['']",
-        "data-expanded:h-(--toast-height) data-expanded:[transform:translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))]",
-        "data-limited:opacity-0 data-starting-style:[transform:translateY(150%)]",
-        "[&[data-ending-style]:not([data-limited]):not([data-swipe-direction])]:[transform:translateY(150%)]",
-        "data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
-        "data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=down]:[transform:translateY(calc(var(--toast-swipe-movement-y)+150%))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=left]:[transform:translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=right]:[transform:translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]",
-        "data-expanded:data-ending-style:data-[swipe-direction=up]:[transform:translateY(calc(var(--toast-swipe-movement-y)-150%))]",
+        "pointer-events-auto relative w-full overflow-hidden rounded-[10px] border border-[#e5e5e5] bg-white text-black shadow-[0_18px_45px_rgba(0,0,0,0.18)] outline-none transition-all duration-200 ease-out focus-visible:ring-[3px] focus-visible:ring-black/10",
+        "data-starting-style:translate-y-2 data-starting-style:opacity-0 data-ending-style:translate-y-2 data-ending-style:opacity-0",
+        "data-[swipe-direction=down]:translate-y-[var(--toast-swipe-movement-y)] data-[swipe-direction=up]:translate-y-[var(--toast-swipe-movement-y)]",
+        "data-[swipe-direction=left]:translate-x-[var(--toast-swipe-movement-x)] data-[swipe-direction=right]:translate-x-[var(--toast-swipe-movement-x)]",
         className
       )}
       {...props}
@@ -62,7 +88,7 @@ function ToastContent({ className, ...props }: ToastPrimitive.Content.Props) {
     <ToastPrimitive.Content
       data-slot="toast-content"
       className={cn(
-        "flex h-full items-center gap-3 overflow-hidden p-4 transition-opacity duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] data-behind:opacity-0 data-expanded:opacity-100",
+        "flex min-h-[72px] items-start gap-3 p-4",
         className
       )}
       {...props}
@@ -74,7 +100,7 @@ function ToastTitle({ className, ...props }: ToastPrimitive.Title.Props) {
   return (
     <ToastPrimitive.Title
       data-slot="toast-title"
-      className={cn("text-sm font-medium", className)}
+      className={cn("text-sm font-semibold leading-5 text-black", className)}
       {...props}
     />
   )
@@ -87,7 +113,7 @@ function ToastDescription({
   return (
     <ToastPrimitive.Description
       data-slot="toast-description"
-      className={cn("text-sm text-muted-foreground", className)}
+      className={cn("mt-0.5 text-sm leading-5 text-[#333333]", className)}
       {...props}
     />
   )
@@ -102,7 +128,7 @@ function ToastAction({
     <ToastPrimitive.Action
       data-slot="toast-action"
       render={render}
-      className={cn("shrink-0", className)}
+      className={cn("shrink-0 border-[#d4d4d4] text-black hover:bg-[#f5f5f5]", className)}
       {...props}
     />
   )
@@ -120,7 +146,7 @@ function ToastClose({
       aria-label="Close toast"
       render={render}
       className={cn(
-        "relative shrink-0 text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:text-foreground",
+        "relative -mr-1 -mt-1 shrink-0 text-[#333333] after:absolute after:-inset-2 after:content-[''] hover:bg-[#f4f4f5] hover:text-black",
         className
       )}
       {...props}
@@ -172,7 +198,7 @@ function ToastIcon({ type }: { type: string | undefined }) {
   return (
     <span
       data-slot="toast-icon"
-      className="shrink-0 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4"
+      className="mt-0.5 shrink-0 text-black [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-5"
     >
       {icon}
     </span>
@@ -200,13 +226,17 @@ function ToastList() {
 function Toaster({
   children,
   toastManager = toast,
+  richColors,
+  position = "bottom-right",
   ...props
-}: ToastPrimitive.Provider.Props) {
+}: ToasterProps) {
+  void richColors
+
   return (
     <ToastProvider toastManager={toastManager} {...props}>
       {children}
       <ToastPortal>
-        <ToastViewport>
+        <ToastViewport className={getToastViewportPositionClassName(position)}>
           <ToastList />
         </ToastViewport>
       </ToastPortal>

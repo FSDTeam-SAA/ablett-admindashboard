@@ -1,15 +1,53 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { getSession, signIn } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff } from 'lucide-react'
+import { toast } from '@/components/ui/toast'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function LoginPage() {
+const getSafeCallbackUrl = (callbackUrl: string | null) => {
+  if (!callbackUrl) return '/'
+
+  if (callbackUrl.startsWith('/')) {
+    return callbackUrl
+  }
+
+  try {
+    const url = new URL(callbackUrl)
+
+    if (typeof window !== 'undefined' && url.origin === window.location.origin) {
+      return `${url.pathname}${url.search}${url.hash}`
+    }
+  } catch {
+    return '/'
+  }
+
+  return '/'
+}
+
+const getLoginErrorMessage = (error?: string | null) => {
+  if (!error || error === 'CredentialsSignin') {
+    return 'Invalid email or password. Please try again.'
+  }
+
+  if (error === 'Configuration') {
+    return 'Login service is not configured. Please contact support.'
+  }
+
+  return error
+}
+
+function AdminLoginPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -24,9 +62,76 @@ export default function LoginPage() {
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleRememberMeChange = (checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      rememberMe: checked,
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    console.log('Login attempt:', formData)
+
+    const email = formData.email.trim()
+
+    if (!email || !formData.password) {
+      toast.add({
+        title: 'Login failed',
+        description: 'Please enter your email and password.',
+        type: 'error',
+        priority: 'high',
+      })
+      return
+    }
+
+    setIsSubmitting(true)
+    const toastId = toast.add({
+      title: 'Signing in',
+      description: 'Please wait...',
+      type: 'loading',
+      timeout: 0,
+    })
+
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password: formData.password,
+        redirect: false,
+      })
+
+      if (!result?.ok) {
+        toast.update(toastId, {
+          title: 'Login failed',
+          description: getLoginErrorMessage(result?.error),
+          type: 'error',
+          timeout: 5000,
+          priority: 'high',
+        })
+        return
+      }
+
+      const session = await getSession()
+      const destination = getSafeCallbackUrl(searchParams.get('callbackUrl'))
+
+      toast.update(toastId, {
+        title: 'Login successful',
+        description: session?.message || 'Welcome back to admin dashboard.',
+        type: 'success',
+        timeout: 3000,
+      })
+      router.push(destination)
+      router.refresh()
+    } catch {
+      toast.update(toastId, {
+        title: 'Login failed',
+        description: 'Something went wrong. Please try again.',
+        type: 'error',
+        timeout: 5000,
+        priority: 'high',
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -108,6 +213,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={handleChange}
                   className="bg-[#333333] h-[51px] border-none rounded-full text-white placeholder:text-gray-500 pl-5"
+                  disabled={isSubmitting}
                   required
                 />
               </div>
@@ -124,12 +230,14 @@ export default function LoginPage() {
                     placeholder="Enter Password..."
                     value={formData.password}
                     onChange={handleChange}
-                    className="bg-[#333333] h-[51px] border-none rounded-full text-white placeholder:text-gray-500 pl-5"
+                    className="bg-[#333333] h-[51px] border-none rounded-full text-white placeholder:text-gray-500 pl-5 pr-10"
+                    disabled={isSubmitting}
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
+                    disabled={isSubmitting}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200"
                   >
                     {showPassword ? (
@@ -148,7 +256,8 @@ export default function LoginPage() {
                     id="rememberMe"
                     name="rememberMe"
                     checked={formData.rememberMe}
-                    // onChange={handleChange}
+                    onCheckedChange={handleRememberMeChange}
+                    disabled={isSubmitting}
                   />
                   <label
                     htmlFor="rememberMe"
@@ -168,9 +277,18 @@ export default function LoginPage() {
               {/* Sign In Button */}
               <Button
                 type="submit"
+                disabled={isSubmitting}
+                aria-busy={isSubmitting}
                 className="w-full bg-[#BB7B1D] hover:bg-[#BB7B1D]/80 text-white h-[51px] text-base font-semibold py-2 rounded-full transition-colors"
               >
-                Sign In
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing In...
+                  </>
+                ) : (
+                  'Sign In'
+                )}
               </Button>
             </form>
 
@@ -179,5 +297,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminLoginPage />
+    </Suspense>
   )
 }

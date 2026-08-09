@@ -1,6 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { DeleteConfirmationModal } from "@/components/common/DeleteConfirmationModal";
@@ -16,122 +19,240 @@ import {
 } from "@/components/ui/table";
 import { EditFaqForm } from "./EditFaqForm";
 import { FaqDetailsModal } from "./FaqDetailsModal";
-import { FaqForm } from "./FaqForm";
+import { FaqForm, type FaqPayload } from "./FaqForm";
+import { FaqTableSkeleton } from "./FaqTableSkeleton";
 
 type FaqItem = {
-  id: number;
+  _id: string;
   question: string;
   answer: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 };
 
-const initialFaqs: FaqItem[] = [
-  {
-    id: 1,
-    question: "What construction services do you provide?",
-    answer:
-      "We offer complete residential and commercial construction services, including site preparation, foundation work, welding & fabrication, structur...",
-  },
-  {
-    id: 2,
-    question: "Do you work on both residential and commercial projects?",
-    answer:
-      "Large-scale commercial and industrial projects delivered with precision and accountability. From permitting through final turnover, A7 manages the en...",
-  },
-  {
-    id: 3,
-    question: "Can I request a free project estimate?",
-    answer:
-      "Expert earthworks and foundation solutions built for North Texas soil conditions - including helical piles for expansive clay where traditional foo...",
-  },
-  {
-    id: 4,
-    question: "What is your construction process?",
-    answer:
-      "Custom structural and agricultural metalwork - from commercial steel fabrication to ranch gates, cattle guards, bridges, and on-site field welding.",
-  },
-  {
-    id: 5,
-    question: "Do you provide site preparation and foundation services?",
-    answer:
-      "Professional fencing installation across residential, commercial, and agricultural properties - from perimeter security to decorative ranch fenci...",
-  },
-  {
-    id: 6,
-    question: "How long does a typical project take?",
-    answer:
-      "Project timelines depend on scope, land conditions, permitting, materials, and weather. We provide a clear schedule before work begins.",
-  },
-  {
-    id: 7,
-    question: "Do you handle permits and planning?",
-    answer:
-      "Our team helps coordinate planning, project requirements, inspections, and permit-related steps based on the work being performed.",
-  },
-  {
-    id: 8,
-    question: "Can you work on rural or acreage properties?",
-    answer:
-      "Yes. We specialize in rural, acreage, ranch, and commercial properties that need practical construction planning and heavy equipment support.",
-  },
-  {
-    id: 9,
-    question: "Do you offer welding and fabrication?",
-    answer:
-      "We provide structural steel fabrication, custom gates, field welding, cattle guards, bridges, and other custom metalwork services.",
-  },
-  {
-    id: 10,
-    question: "Can you help with drainage issues?",
-    answer:
-      "Yes. We plan and install drainage solutions including grading, culverts, swales, erosion control, and water-routing improvements.",
-  },
-  {
-    id: 11,
-    question: "Do you build fences and gates?",
-    answer:
-      "We install ranch fencing, privacy fencing, perimeter fencing, custom entrances, and automatic gate systems for different property types.",
-  },
-  {
-    id: 12,
-    question: "How do I start a project?",
-    answer:
-      "Contact our team with your project goals, location, timeline, and budget. We will review the details and outline the next steps.",
-  },
-];
+type FaqMeta = {
+  page: number;
+  limit: number;
+  total: number;
+};
 
-const pageSize = 5;
+type ApiResponse<T> = {
+  statusCode?: number;
+  success?: boolean;
+  status?: boolean;
+  message?: string;
+  error?: string;
+  meta?: FaqMeta;
+  data?: T;
+};
+
+const pageSize = 10;
+const faqQueryKey = "admin-faqs";
+
+function getApiBaseUrl() {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!apiBaseUrl) {
+    throw new Error("API base URL is not configured.");
+  }
+
+  return apiBaseUrl.replace(/\/+$/, "");
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function parseResponse<T>(response: Response, fallback: string) {
+  const data: ApiResponse<T> | null = await response.json().catch(() => null);
+
+  if (!response.ok || data?.success === false || data?.status === false) {
+    throw new Error(data?.message || data?.error || fallback);
+  }
+
+  if (!data) {
+    throw new Error(fallback);
+  }
+
+  return data;
+}
+
+async function fetchFaqs(page: number) {
+  const url = new URL(`${getApiBaseUrl()}/faq`);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("limit", String(pageSize));
+  url.searchParams.set("sortBy", "createdAt");
+  url.searchParams.set("sortOrder", "desc");
+
+  const response = await fetch(url.toString());
+  const data = await parseResponse<FaqItem[]>(
+    response,
+    "Failed to fetch FAQs.",
+  );
+
+  return {
+    faqs: data.data ?? [],
+    meta: data.meta ?? { page, limit: pageSize, total: data.data?.length ?? 0 },
+  };
+}
+
+async function createFaq({
+  payload,
+  accessToken,
+}: {
+  payload: FaqPayload;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/faq`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<FaqItem>(response, "Failed to create FAQ.");
+}
+
+async function updateFaq({
+  id,
+  payload,
+  accessToken,
+}: {
+  id: string;
+  payload: FaqPayload;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/faq/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return parseResponse<FaqItem>(response, "Failed to update FAQ.");
+}
+
+async function deleteFaq({
+  id,
+  accessToken,
+}: {
+  id: string;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/faq/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+
+  return parseResponse<FaqItem>(response, "Failed to delete FAQ.");
+}
 
 export function FaqTable() {
-  const [faqList, setFaqList] = useState(initialFaqs);
+  const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const [currentPage, setCurrentPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<FaqItem | null>(null);
   const [detailsTarget, setDetailsTarget] = useState<FaqItem | null>(null);
   const [editTarget, setEditTarget] = useState<FaqItem | null>(null);
   const [isFaqFormOpen, setIsFaqFormOpen] = useState(false);
+  const accessToken = session?.accessToken;
 
-  const paginatedFaqs = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return faqList.slice(startIndex, startIndex + pageSize);
-  }, [currentPage, faqList]);
+  const faqsQuery = useQuery({
+    queryKey: [faqQueryKey, currentPage],
+    queryFn: () => fetchFaqs(currentPage),
+  });
 
-  const handleConfirmDelete = () => {
-    if (!deleteTarget) {
+  const createMutation = useMutation({
+    mutationFn: (payload: FaqPayload) => createFaq({ payload, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "FAQ created successfully.");
+      setIsFaqFormOpen(false);
+      setCurrentPage(1);
+      await queryClient.invalidateQueries({ queryKey: [faqQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to create FAQ."));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: FaqPayload;
+    }) => updateFaq({ id, payload, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "FAQ updated successfully.");
+      setEditTarget(null);
+      await queryClient.invalidateQueries({ queryKey: [faqQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update FAQ."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteFaq({ id, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "FAQ deleted successfully.");
+      setDeleteTarget(null);
+      await queryClient.invalidateQueries({ queryKey: [faqQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete FAQ."));
+    },
+  });
+
+  const faqs = faqsQuery.data?.faqs ?? [];
+  const meta = faqsQuery.data?.meta;
+  const totalItems = meta?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  useEffect(() => {
+    if (!faqsQuery.isSuccess || currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, faqsQuery.isSuccess, totalPages]);
+
+  const handleCreateFaq = (payload: FaqPayload) => {
+    if (!payload.question || !payload.answer) {
+      toast.error("Please enter both question and answer.");
       return;
     }
 
-    const updatedFaqs = faqList.filter((faq) => faq.id !== deleteTarget.id);
-    const maxPage = Math.max(1, Math.ceil(updatedFaqs.length / pageSize));
+    createMutation.mutate(payload);
+  };
 
-    setFaqList(updatedFaqs);
-    setCurrentPage((page) => Math.min(page, maxPage));
-    setDeleteTarget(null);
+  const handleUpdateFaq = (payload: FaqPayload) => {
+    if (!editTarget) return;
+
+    if (!payload.question || !payload.answer) {
+      toast.error("Please enter both question and answer.");
+      return;
+    }
+
+    updateMutation.mutate({ id: editTarget._id, payload });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget._id);
   };
 
   if (isFaqFormOpen) {
     return (
       <FaqForm
         onDiscard={() => setIsFaqFormOpen(false)}
-        onSave={() => setIsFaqFormOpen(false)}
+        onSave={handleCreateFaq}
+        isSaving={createMutation.isPending}
       />
     );
   }
@@ -141,16 +262,14 @@ export function FaqTable() {
       <EditFaqForm
         faq={editTarget}
         onDiscard={() => setEditTarget(null)}
-        onSave={(updatedFaq) => {
-          setFaqList((currentFaqs) =>
-            currentFaqs.map((faq) =>
-              faq.id === updatedFaq.id ? updatedFaq : faq,
-            ),
-          );
-          setEditTarget(null);
-        }}
+        onSave={handleUpdateFaq}
+        isSaving={updateMutation.isPending}
       />
     );
+  }
+
+  if (faqsQuery.isLoading) {
+    return <FaqTableSkeleton />;
   }
 
   return (
@@ -165,73 +284,92 @@ export function FaqTable() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#5f5f5f]">
-        <Table>
-          <TableHeader className="bg-[#E6E6E61A]">
-            <TableRow className="border-[#3a3a3a] hover:bg-transparent">
-              <TableHead className="w-[300px] text-center text-[14px] text-white">
-                Question
-              </TableHead>
-              <TableHead className="text-center text-[14px] text-white">
-                Answer
-              </TableHead>
-              <TableHead className="w-[140px] text-center text-[14px] text-white">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {paginatedFaqs.map((faq) => (
-              <TableRow
-                key={faq.id}
-                className="border-[#5b5b5b] hover:bg-[#181818]"
-              >
-                <TableCell className="w-[300px] py-4 text-center align-middle text-[14px] leading-5 text-[#E6E6E6]">
-                  <div className="mx-auto max-w-[240px]">{faq.question}</div>
-                </TableCell>
-
-                <TableCell className="py-4 text-center align-middle text-[14px] leading-5 text-[#E6E6E6]">
-                  <div className="mx-auto max-w-[520px]">{faq.answer}</div>
-                </TableCell>
-
-                <TableCell className="w-[140px] py-4 text-center align-middle">
-                  <div className="flex items-center justify-center gap-3 text-white">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsTarget(faq)}
-                      className="transition-colors hover:text-[#c9850d]"
-                      aria-label={`View ${faq.question}`}
-                    >
-                      <Eye className="size-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditTarget(faq)}
-                      className="transition-colors hover:text-[#c9850d]"
-                      aria-label={`Edit ${faq.question}`}
-                    >
-                      <Pencil className="size-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(faq)}
-                      className="transition-colors hover:text-[#ff4d62]"
-                      aria-label={`Delete ${faq.question}`}
-                    >
-                      <Trash2 className="size-5" />
-                    </button>
-                  </div>
-                </TableCell>
+      {faqsQuery.isError ? (
+        <div className="rounded-lg border border-[#5f5f5f] bg-[#181818] px-5 py-10 text-center text-sm text-[#f5b5b5]">
+          {getErrorMessage(faqsQuery.error, "Failed to fetch FAQs.")}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[#5f5f5f]">
+          <Table>
+            <TableHeader className="bg-[#E6E6E61A]">
+              <TableRow className="border-[#3a3a3a] hover:bg-transparent">
+                <TableHead className="w-[300px] text-center text-[14px] text-white">
+                  Question
+                </TableHead>
+                <TableHead className="text-center text-[14px] text-white">
+                  Answer
+                </TableHead>
+                <TableHead className="w-[140px] text-center text-[14px] text-white">
+                  Action
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+
+            <TableBody>
+              {faqs.length === 0 ? (
+                <TableRow className="border-[#5b5b5b] hover:bg-transparent">
+                  <TableCell
+                    colSpan={3}
+                    className="py-10 text-center text-sm text-[#bdbdbd]"
+                  >
+                    No FAQs found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                faqs.map((faq) => (
+                  <TableRow
+                    key={faq._id}
+                    className="border-[#5b5b5b] hover:bg-[#181818]"
+                  >
+                    <TableCell className="w-[300px] py-4 text-center align-middle text-[14px] leading-5 text-[#E6E6E6]">
+                      <div className="mx-auto max-w-[240px]">
+                        {faq.question}
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="py-4 text-center align-middle text-[14px] leading-5 text-[#E6E6E6]">
+                      <div className="mx-auto max-w-[520px]">{faq.answer}</div>
+                    </TableCell>
+
+                    <TableCell className="w-[140px] py-4 text-center align-middle">
+                      <div className="flex items-center justify-center gap-3 text-white">
+                        <button
+                          type="button"
+                          onClick={() => setDetailsTarget(faq)}
+                          className="transition-colors hover:text-[#c9850d]"
+                          aria-label={`View ${faq.question}`}
+                        >
+                          <Eye className="size-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditTarget(faq)}
+                          className="transition-colors hover:text-[#c9850d]"
+                          aria-label={`Edit ${faq.question}`}
+                        >
+                          <Pencil className="size-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(faq)}
+                          className="transition-colors hover:text-[#ff4d62]"
+                          aria-label={`Delete ${faq.question}`}
+                        >
+                          <Trash2 className="size-5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <Pagination
         currentPage={currentPage}
-        totalItems={faqList.length}
+        totalItems={totalItems}
         pageSize={pageSize}
         onPageChange={setCurrentPage}
       />
@@ -239,16 +377,13 @@ export function FaqTable() {
       <DeleteConfirmationModal
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !deleteMutation.isPending) {
             setDeleteTarget(null);
           }
         }}
         onConfirm={handleConfirmDelete}
-        description={
-          deleteTarget
-            ? `Are you sure you want to delete this FAQ?`
-            : "Are you sure you want to delete this FAQ?"
-        }
+        isConfirming={deleteMutation.isPending}
+        description="Are you sure you want to delete this FAQ?"
       />
       <FaqDetailsModal
         faq={detailsTarget}

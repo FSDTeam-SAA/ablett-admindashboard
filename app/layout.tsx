@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { QueryClientProvider } from "@/components/providers/QueryClientProvider";
 import { Toaster } from "@/components/ui/toast";
 import AuthSessionProvider from "@/components/providers/AuthSessionProvider";
+import { Toaster as SonnerToaster } from "sonner";
 
 
 
@@ -24,7 +25,8 @@ export default function RootLayout({
         className={` antialiased`}
       >
         <QueryClientProvider>
-          <Toaster />
+          <Toaster richColors position="top-right" />
+          <SonnerToaster richColors position="top-right" />
            <AuthSessionProvider>{children}</AuthSessionProvider>
         </QueryClientProvider>
       </body>
