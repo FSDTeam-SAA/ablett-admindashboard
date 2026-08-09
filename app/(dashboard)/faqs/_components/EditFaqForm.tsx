@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
+import type { FaqPayload } from "./FaqForm";
 
 type Faq = {
-  id: number;
+  _id: string;
   question: string;
   answer: string;
 };
@@ -11,20 +13,26 @@ type Faq = {
 type EditFaqFormProps = {
   faq: Faq;
   onDiscard: () => void;
-  onSave: (faq: Faq) => void;
+  onSave: (payload: FaqPayload) => void;
+  isSaving?: boolean;
 };
 
-export function EditFaqForm({ faq, onDiscard, onSave }: EditFaqFormProps) {
+export function EditFaqForm({
+  faq,
+  onDiscard,
+  onSave,
+  isSaving = false,
+}: EditFaqFormProps) {
+  const [question, setQuestion] = useState(faq.question);
+  const [answer, setAnswer] = useState(faq.answer);
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        const formData = new FormData(event.currentTarget);
-
         onSave({
-          id: faq.id,
-          question: String(formData.get("question") ?? ""),
-          answer: String(formData.get("answer") ?? ""),
+          question: question.trim(),
+          answer: answer.trim(),
         });
       }}
       className="rounded-lg bg-[#181818] p-5 text-white"
@@ -34,6 +42,7 @@ export function EditFaqForm({ faq, onDiscard, onSave }: EditFaqFormProps) {
         <button
           type="button"
           onClick={onDiscard}
+          disabled={isSaving}
           className="text-[#8a8a8a] transition-colors hover:text-white"
           aria-label="Close edit FAQ form"
         >
@@ -51,10 +60,12 @@ export function EditFaqForm({ faq, onDiscard, onSave }: EditFaqFormProps) {
           </label>
           <input
             id="edit-faq-question"
-            name="question"
             type="text"
-            defaultValue={faq.question}
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            disabled={isSaving}
             className="h-[44px] w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+            required
           />
         </div>
 
@@ -67,9 +78,11 @@ export function EditFaqForm({ faq, onDiscard, onSave }: EditFaqFormProps) {
           </label>
           <textarea
             id="edit-faq-answer"
-            name="answer"
-            defaultValue={faq.answer}
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            disabled={isSaving}
             className="min-h-[190px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-4 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+            required
           />
         </div>
       </div>
@@ -78,15 +91,17 @@ export function EditFaqForm({ faq, onDiscard, onSave }: EditFaqFormProps) {
         <button
           type="button"
           onClick={onDiscard}
+          disabled={isSaving}
           className="h-10 rounded-full bg-[#5a5a5a] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#686868]"
         >
           Discard
         </button>
         <button
           type="submit"
+          disabled={isSaving}
           className="h-10 rounded-full bg-[#c98313] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#b6750f]"
         >
-          Save
+          {isSaving ? "Saving..." : "Save"}
         </button>
       </div>
     </form>

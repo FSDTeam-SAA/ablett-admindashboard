@@ -17,6 +17,7 @@ type DeleteConfirmationModalProps = {
   description?: string;
   cancelLabel?: string;
   confirmLabel?: string;
+  isConfirming?: boolean;
 };
 
 export function DeleteConfirmationModal({
@@ -27,6 +28,7 @@ export function DeleteConfirmationModal({
   description = "Are you sure you want to delete this item?",
   cancelLabel = "Cancel",
   confirmLabel = "Delete",
+  isConfirming = false,
 }: DeleteConfirmationModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -52,6 +54,7 @@ export function DeleteConfirmationModal({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
+            disabled={isConfirming}
             className="h-10 rounded-full bg-[#5a5a5a] px-6 text-xs font-semibold text-white transition-colors hover:bg-[#686868]"
           >
             {cancelLabel}
@@ -59,9 +62,10 @@ export function DeleteConfirmationModal({
           <button
             type="button"
             onClick={onConfirm}
+            disabled={isConfirming}
             className="h-10 rounded-full bg-[#c98313] px-6 text-xs font-semibold text-white transition-colors hover:bg-[#b6750f]"
           >
-            {confirmLabel}
+            {isConfirming ? "Deleting..." : confirmLabel}
           </button>
         </div>
       </DialogContent>

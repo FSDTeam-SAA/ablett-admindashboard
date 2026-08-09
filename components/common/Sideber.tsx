@@ -35,7 +35,7 @@ const navigation = [
   { name: "Portfolio Management", href: "/portfolio", icon: Wrench },
   { name: "Inquiries Management", href: "/inquiries", icon: MessageSquare },
   { name: "FAQ's", href: "/faqs", icon: CircleHelp },
-  { name: "Massage", href: "/messages", icon: MessageSquareText },
+  { name: "Messages", href: "/messages", icon: MessageSquareText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -170,7 +170,7 @@ export function Sidebar() {
       </div>
 
       <Dialog open={isLogoutModalOpen} onOpenChange={setIsLogoutModalOpen}>
-        <DialogContent className="max-w-[440px] p-6">
+        <DialogContent className="max-w-[440px] p-6 bg-white">
           <DialogHeader className="pr-8">
             <DialogTitle className="text-2xl font-semibold text-[#000000]">
               Logout confirmation

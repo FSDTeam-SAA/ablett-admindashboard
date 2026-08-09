@@ -37,6 +37,10 @@ const headerContent: Record<string, { title: string; description: string }> = {
     title: "Settings",
     description: "Manage your profile and password preferences.",
   },
+  "/messages": {
+    title: "Messages",
+    description: "Reply to customer conversations in real time.",
+  },
   "/security": {
     title: "Security",
     description: "Manage your account security and login preferences.",

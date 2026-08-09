@@ -1,18 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import { X } from "lucide-react";
+
+export type FaqPayload = {
+  question: string;
+  answer: string;
+};
 
 type FaqFormProps = {
   onDiscard: () => void;
-  onSave: () => void;
+  onSave: (payload: FaqPayload) => void;
+  isSaving?: boolean;
 };
 
-export function FaqForm({ onDiscard, onSave }: FaqFormProps) {
+export function FaqForm({ onDiscard, onSave, isSaving = false }: FaqFormProps) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSave();
+        onSave({
+          question: question.trim(),
+          answer: answer.trim(),
+        });
       }}
       className="rounded-lg bg-[#181818] p-5 text-white"
     >
@@ -23,6 +36,7 @@ export function FaqForm({ onDiscard, onSave }: FaqFormProps) {
         <button
           type="button"
           onClick={onDiscard}
+          disabled={isSaving}
           className="text-[#8a8a8a] transition-colors hover:text-white"
           aria-label="Close FAQ form"
         >
@@ -42,7 +56,11 @@ export function FaqForm({ onDiscard, onSave }: FaqFormProps) {
             id="faq-question"
             type="text"
             placeholder="Enter Question Title"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            disabled={isSaving}
             className="h-[44px] w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+            required
           />
         </div>
 
@@ -56,7 +74,11 @@ export function FaqForm({ onDiscard, onSave }: FaqFormProps) {
           <textarea
             id="faq-answer"
             placeholder="Write your Answer here ..."
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            disabled={isSaving}
             className="min-h-[190px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-4 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+            required
           />
         </div>
       </div>
@@ -65,15 +87,17 @@ export function FaqForm({ onDiscard, onSave }: FaqFormProps) {
         <button
           type="button"
           onClick={onDiscard}
+          disabled={isSaving}
           className="h-10 rounded-full bg-[#5a5a5a] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#686868]"
         >
           Discard
         </button>
         <button
           type="submit"
+          disabled={isSaving}
           className="h-10 rounded-full bg-[#c98313] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#b6750f]"
         >
-          Save
+          {isSaving ? "Saving..." : "Save"}
         </button>
       </div>
     </form>
