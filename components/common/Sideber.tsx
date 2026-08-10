@@ -31,7 +31,7 @@ import {
 
 const navigation = [
   { name: "Dashboard Overview", href: "/", icon: LayoutDashboard },
-  { name: "Services Management", href: "/services", icon: FileText },
+  // { name: "Services Management", href: "/services", icon: FileText },
   { name: "Portfolio Management", href: "/portfolio", icon: Wrench },
   { name: "Inquiries Management", href: "/inquiries", icon: MessageSquare },
   { name: "FAQ's", href: "/faqs", icon: CircleHelp },
