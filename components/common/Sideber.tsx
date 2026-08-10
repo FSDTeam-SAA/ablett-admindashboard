@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   CircleHelp,
-  FileText,
+  // FileText,
   LayoutDashboard,
   LogOut,
   Menu,
