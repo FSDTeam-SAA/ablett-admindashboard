@@ -1,16 +1,141 @@
 "use client";
 
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { ChevronDown, Upload, X } from "lucide-react";
+import { ImagePlus, Loader2, Upload, X } from "lucide-react";
+
+export type ProjectField =
+  | "title"
+  | "description"
+  | "scope"
+  | "challenge"
+  | "a7Solution"
+  | "result"
+  | "equipmentsUsed"
+  | "timeline"
+  | "projectExperience";
+
+export type ProjectImageField = "coverImage" | "before" | "during" | "completed";
+
+export type ProjectFormValues = Record<ProjectField, string> &
+  Partial<Record<ProjectImageField, File>>;
 
 type ProjectFormProps = {
   onDiscard: () => void;
-  onSave: () => void;
+  onSave: (payload: ProjectFormValues) => void;
+  isSaving?: boolean;
+  initialValues?: Partial<Record<ProjectField, string | null>>;
+  initialImagePreviews?: Partial<Record<ProjectImageField, string | null>>;
+  submitLabel?: string;
+  savingLabel?: string;
+  imageHelpText?: string;
 };
 
-export function ProjectForm({ onDiscard, onSave }: ProjectFormProps) {
+const initialValues: Record<ProjectField, string> = {
+  title: "",
+  description: "",
+  scope: "",
+  challenge: "",
+  a7Solution: "",
+  result: "",
+  equipmentsUsed: "",
+  timeline: "",
+  projectExperience: "",
+};
+
+const textFields: Array<{
+  id: ProjectField;
+  label: string;
+  placeholder: string;
+  multiline?: boolean;
+}> = [
+  {
+    id: "title",
+    label: "Project Title",
+    placeholder: "Enter project title",
+  },
+  {
+    id: "scope",
+    label: "Scope",
+    placeholder: "Define the project scope",
+  },
+  {
+    id: "challenge",
+    label: "Challenge",
+    placeholder: "Describe the main challenge",
+    multiline: true,
+  },
+  {
+    id: "a7Solution",
+    label: "A7 Solution",
+    placeholder: "Explain the solution A7 delivered",
+    multiline: true,
+  },
+  {
+    id: "result",
+    label: "Result",
+    placeholder: "Summarize the project result",
+    multiline: true,
+  },
+  {
+    id: "equipmentsUsed",
+    label: "Equipments Used",
+    placeholder: "List equipment used on the project",
+  },
+  {
+    id: "timeline",
+    label: "Timeline",
+    placeholder: "Example: 12 weeks",
+  },
+  {
+    id: "projectExperience",
+    label: "Project Experience",
+    placeholder: "Share the client or team experience",
+    multiline: true,
+  },
+];
+
+const imageFields: Array<{
+  id: ProjectImageField;
+  label: string;
+}> = [
+  { id: "coverImage", label: "Cover Image" },
+  { id: "before", label: "Before" },
+  { id: "during", label: "During" },
+  { id: "completed", label: "Completed" },
+];
+
+export function ProjectForm({
+  onDiscard,
+  onSave,
+  isSaving = false,
+  initialValues: initialFormValues,
+  initialImagePreviews,
+  submitLabel = "Save",
+  savingLabel = "Saving...",
+  imageHelpText = "Upload one image for each stage. Files are posted with the API field names.",
+}: ProjectFormProps) {
   const previewUrlsRef = useRef<string[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [values, setValues] = useState<Record<ProjectField, string>>(() => ({
+    ...initialValues,
+    ...Object.fromEntries(
+      Object.entries(initialFormValues ?? {}).map(([key, value]) => [
+        key,
+        value ?? "",
+      ]),
+    ),
+  }));
+  const [images, setImages] = useState<Partial<Record<ProjectImageField, File>>>(
+    {},
+  );
+  const [imagePreviews, setImagePreviews] = useState<
+    Partial<Record<ProjectImageField, string>>
+  >(() => ({
+    ...Object.fromEntries(
+      Object.entries(initialImagePreviews ?? {}).filter(([, value]) =>
+        Boolean(value),
+      ),
+    ),
+  }));
 
   useEffect(() => {
     return () => {
@@ -18,117 +143,106 @@ export function ProjectForm({ onDiscard, onSave }: ProjectFormProps) {
     };
   }, []);
 
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
+  const updateValue = (field: ProjectField, value: string) => {
+    setValues((currentValues) => ({ ...currentValues, [field]: value }));
+  };
+
+  const handleImageChange = (
+    field: ProjectImageField,
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const selectedFile = event.target.files?.[0];
+
+    if (!selectedFile) {
+      return;
+    }
 
     setImagePreviews((currentPreviews) => {
-      const remainingSlots = Math.max(0, 5 - currentPreviews.length);
-      const newPreviews = selectedFiles
-        .slice(0, remainingSlots)
-        .map((file) => URL.createObjectURL(file));
+      const currentPreview = currentPreviews[field];
 
-      previewUrlsRef.current = [...previewUrlsRef.current, ...newPreviews];
+      if (currentPreview) {
+        URL.revokeObjectURL(currentPreview);
+      }
 
-      return [...currentPreviews, ...newPreviews];
+      const nextPreview = URL.createObjectURL(selectedFile);
+      previewUrlsRef.current = [
+        ...previewUrlsRef.current.filter((preview) => preview !== currentPreview),
+        nextPreview,
+      ];
+
+      return { ...currentPreviews, [field]: nextPreview };
     });
-
+    setImages((currentImages) => ({ ...currentImages, [field]: selectedFile }));
     event.target.value = "";
   };
 
-  const handleRemoveImage = (preview: string) => {
-    URL.revokeObjectURL(preview);
-    previewUrlsRef.current = previewUrlsRef.current.filter(
-      (currentPreview) => currentPreview !== preview,
-    );
-    setImagePreviews((currentPreviews) =>
-      currentPreviews.filter((currentPreview) => currentPreview !== preview),
-    );
+  const handleRemoveImage = (field: ProjectImageField) => {
+    const preview = imagePreviews[field];
+
+    if (preview) {
+      URL.revokeObjectURL(preview);
+      previewUrlsRef.current = previewUrlsRef.current.filter(
+        (currentPreview) => currentPreview !== preview,
+      );
+    }
+
+    setImagePreviews((currentPreviews) => {
+      const nextPreviews = { ...currentPreviews };
+      delete nextPreviews[field];
+      return nextPreviews;
+    });
+    setImages((currentImages) => {
+      const nextImages = { ...currentImages };
+      delete nextImages[field];
+      return nextImages;
+    });
+  };
+
+  const handleSubmit = () => {
+    onSave({ ...values, ...images });
   };
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSave();
+        handleSubmit();
       }}
       className="rounded-lg bg-[#181818] p-5 text-white"
     >
-      <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
+      <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <label
-              htmlFor="project-name"
-              className="text-base font-medium text-white"
+          {textFields.map((field) => (
+            <div
+              key={field.id}
+              className={field.multiline ? "space-y-2 sm:col-span-2" : "space-y-2"}
             >
-              Projects Name
-            </label>
-            <input
-              id="project-name"
-              type="text"
-              placeholder="Enter Project  name"
-              className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="project-location"
-              className="text-base font-medium text-white"
-            >
-              Location
-            </label>
-            <input
-              id="project-location"
-              type="text"
-              placeholder="Enter the project location"
-              className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="project-type"
-              className="text-base font-medium text-white"
-            >
-              Project Type
-            </label>
-            <input
-              id="project-type"
-              type="text"
-              placeholder="Enter the project type"
-              className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="project-completion"
-              className="text-base font-medium text-white"
-            >
-              Completion
-            </label>
-            <input
-              id="project-completion"
-              type="text"
-              placeholder="Enter the completion date"
-              className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label
-              htmlFor="project-duration"
-              className="text-base font-medium text-white"
-            >
-              Duration
-            </label>
-            <input
-              id="project-duration"
-              type="text"
-              placeholder="Enter the duration."
-              className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
+              <label
+                htmlFor={`project-${field.id}`}
+                className="text-base font-medium text-white"
+              >
+                {field.label}
+              </label>
+              {field.multiline ? (
+                <textarea
+                  id={`project-${field.id}`}
+                  value={values[field.id]}
+                  onChange={(event) => updateValue(field.id, event.target.value)}
+                  placeholder={field.placeholder}
+                  className="min-h-[112px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-3 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+                />
+              ) : (
+                <input
+                  id={`project-${field.id}`}
+                  type="text"
+                  value={values[field.id]}
+                  onChange={(event) => updateValue(field.id, event.target.value)}
+                  placeholder={field.placeholder}
+                  className="h-10 w-full rounded border border-[#747474] bg-transparent px-4 text-sm text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+                />
+              )}
+            </div>
+          ))}
 
           <div className="space-y-2 sm:col-span-2">
             <label
@@ -139,114 +253,97 @@ export function ProjectForm({ onDiscard, onSave }: ProjectFormProps) {
             </label>
             <textarea
               id="project-description"
-              placeholder="Describe your product in detail..."
-              className="min-h-[190px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-4 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
+              value={values.description}
+              onChange={(event) => updateValue("description", event.target.value)}
+              placeholder="Describe your project in detail"
+              className="min-h-[150px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-4 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
             />
           </div>
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="space-y-2">
-            <label
-              htmlFor="project-category"
-              className="text-base font-medium text-white"
-            >
-              Category
-            </label>
-            <div className="relative">
-              <select
-                id="project-category"
-                defaultValue=""
-                className="h-10 w-full appearance-none rounded border border-[#747474] bg-transparent px-4 pr-10 text-sm text-[#8a8a8a] outline-none transition-colors focus:border-[#c98313]"
-              >
-                <option value="" disabled>
-                  Select Category
-                </option>
-                <option value="commercial">Commercial Construction</option>
-                <option value="residential">Residential Construction</option>
-                <option value="site">Site Preparation & Foundations</option>
-                <option value="welding">Welding & Fabrication</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-[#8a8a8a]" />
-            </div>
+          <div className="rounded-md bg-[#222222] p-4">
+            <p className="text-base font-medium text-white">Project Images</p>
+            <p className="mt-1 text-xs leading-5 text-[#9a9a9a]">
+              {imageHelpText}
+            </p>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-base font-medium text-white">Photo</p>
-            <label
-              htmlFor="project-images"
-              className="flex h-[105px] cursor-pointer flex-col items-center justify-center rounded border border-dashed border-[#6c6c6c] text-center transition-colors hover:border-[#c98313]"
-            >
-              <span className="mb-4 flex size-10 items-center justify-center rounded-full bg-[#5b3800] text-[#c98313]">
-                <Upload className="size-5" />
-              </span>
-              <span className="text-sm text-[#b0b0b0]">
-                Drag and drop image here, or click add image
-              </span>
-            </label>
-            <input
-              id="project-images"
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
-          </div>
-
-          <div className="grid grid-cols-5 gap-2">
-            {Array.from({ length: 5 }, (_, index) => {
-              const preview = imagePreviews[index];
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {imageFields.map((field) => {
+              const preview = imagePreviews[field.id];
+              const inputId = `project-${field.id}`;
 
               return (
-                <label
-                  key={index}
-                  htmlFor="project-images"
-                  className="relative flex h-20 cursor-pointer items-center justify-center overflow-hidden rounded border border-dashed border-[#6c6c6c] bg-cover bg-center text-[10px] text-[#777777] transition-colors hover:border-[#c98313]"
-                  style={
-                    preview
-                      ? { backgroundImage: `url(${preview})` }
-                      : undefined
-                  }
-                >
-                  {preview ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          handleRemoveImage(preview);
-                        }}
-                        className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-[#ff4d62]"
-                        aria-label={`Remove image ${index + 1}`}
-                      >
-                        <X className="size-3" />
-                      </button>
-                      <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
-                        Image {index + 1}
-                      </span>
-                    </>
-                  ) : (
-                    `Image ${index + 1}`
-                  )}
-                </label>
+                <div key={field.id} className="space-y-2">
+                  <p className="text-sm font-medium text-white">{field.label}</p>
+                  <label
+                    htmlFor={inputId}
+                    className="relative flex min-h-[132px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded border border-dashed border-[#6c6c6c] bg-cover bg-center text-center transition-colors hover:border-[#c98313]"
+                    style={
+                      preview ? { backgroundImage: `url(${preview})` } : undefined
+                    }
+                  >
+                    {preview ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            handleRemoveImage(field.id);
+                          }}
+                          className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-black/70 text-white transition-colors hover:bg-[#ff4d62]"
+                          aria-label={`Remove ${field.label}`}
+                        >
+                          <X className="size-4" />
+                        </button>
+                        <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[10px] text-white">
+                          {images[field.id]?.name ?? field.label}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="mb-3 flex size-10 items-center justify-center rounded-full bg-[#5b3800] text-[#c98313]">
+                          {field.id === "coverImage" ? (
+                            <ImagePlus className="size-5" />
+                          ) : (
+                            <Upload className="size-5" />
+                          )}
+                        </span>
+                        <span className="px-4 text-sm text-[#b0b0b0]">
+                          Click to upload {field.label.toLowerCase()}
+                        </span>
+                      </>
+                    )}
+                  </label>
+                  <input
+                    id={inputId}
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => handleImageChange(field.id, event)}
+                    className="hidden"
+                  />
+                </div>
               );
             })}
           </div>
 
-          <div className="mt-auto grid gap-2 pt-28 sm:grid-cols-2">
+          <div className="mt-auto grid gap-2 pt-4 sm:grid-cols-2">
             <button
               type="button"
               onClick={onDiscard}
-              className="h-10 rounded-full bg-[#5a5a5a] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#686868]"
+              disabled={isSaving}
+              className="h-10 rounded-full bg-[#5a5a5a] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#686868] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Discard
             </button>
             <button
               type="submit"
-              className="h-10 rounded-full bg-[#c98313] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#b6750f]"
+              disabled={isSaving}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#c98313] px-8 text-xs font-semibold text-white transition-colors hover:bg-[#b6750f] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              Save
+              {isSaving ? <Loader2 className="size-4 animate-spin" /> : null}
+              {isSaving ? savingLabel : submitLabel}
             </button>
           </div>
         </div>

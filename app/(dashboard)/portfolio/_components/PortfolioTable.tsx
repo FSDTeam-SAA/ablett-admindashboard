@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PencilLine, Plus, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
 
 import { DeleteConfirmationModal } from "@/components/common/DeleteConfirmationModal";
+import { Pagination } from "@/components/common/Pagination";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -13,136 +18,293 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 import { ProjectForm } from "./ProjectForm";
+import {
+  EditProjectForm,
+  type EditableProject,
+} from "./EditProjectForm";
+import { PortfolioTableSkeleton } from "./PortfolioTableSkeleton";
 
-type Project = {
-  id: number;
-  name: string;
-  summary: string;
-  client: string;
-  location: string;
-  category: string;
-  completion: string;
-  thumbnailClassName: string;
+type Project = EditableProject & {
+  projectExperience: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 };
 
-const initialProjects: Project[] = [
-  {
-    id: 1,
-    name: "Custom Residential Home",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Jerome Bell",
-    location: "8080 Railroad St.",
-    category: "Commercial Construction",
-    completion: "17 Oct, 2020",
-    thumbnailClassName: "from-[#d9e6ef] via-[#798d8c] to-[#30424c]",
-  },
-  {
-    id: 2,
-    name: "Site Preparation & Foundations",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Kristin Watson",
-    location: "8558 Green Rd.",
-    category: "Residential Construction",
-    completion: "17 Oct, 2020",
-    thumbnailClassName: "from-[#f1c35c] via-[#84a7a5] to-[#426e3c]",
-  },
-  {
-    id: 3,
-    name: "Commercial Facility Development",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Ralph Edwards",
-    location: "3890 Poplar Dr.",
-    category: "Commercial Construction",
-    completion: "8 Sep, 2020",
-    thumbnailClassName: "from-[#b8d5e6] via-[#68796a] to-[#28425d]",
-  },
-  {
-    id: 4,
-    name: "Concrete Infrastructure",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Devon Lane",
-    location: "3890 Poplar Dr.",
-    category: "Commercial Construction",
-    completion: "8 Sep, 2020",
-    thumbnailClassName: "from-[#c0b9a8] via-[#735f49] to-[#2a2a2a]",
-  },
-  {
-    id: 5,
-    name: "Foundation Construction",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Darrell Steward",
-    location: "775 Rolling Green Rd.",
-    category: "Site Preparation & Foundations",
-    completion: "1 Feb, 2020",
-    thumbnailClassName: "from-[#e2e5e0] via-[#a0704b] to-[#4c5358]",
-  },
-  {
-    id: 6,
-    name: "Industrial Construction",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Eleanor Pena",
-    location: "3605 Parker Rd.",
-    category: "Residential Construction",
-    completion: "8 Sep, 2020",
-    thumbnailClassName: "from-[#dbe9ef] via-[#a8b7b0] to-[#3f6070]",
-  },
-  {
-    id: 7,
-    name: "Warehouse Development",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Jane Cooper",
-    location: "3605 Parker Rd.",
-    category: "Welding & Fabrication",
-    completion: "24 May, 2020",
-    thumbnailClassName: "from-[#dceaf1] via-[#889c85] to-[#293f3a]",
-  },
-  {
-    id: 8,
-    name: "Structural Steel Fabrication",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Annette Black",
-    location: "7529 E. Pecan St.",
-    category: "Site Preparation & Foundations",
-    completion: "22 Oct, 2020",
-    thumbnailClassName: "from-[#1b293e] via-[#926222] to-[#111111]",
-  },
-  {
-    id: 9,
-    name: "Residential Renovation",
-    summary: "Built with precision, quality craftsmanship, and a...",
-    client: "Esther Howard",
-    location: "8558 Green Rd.",
-    category: "Welding & Fabrication",
-    completion: "21 Sep, 2020",
-    thumbnailClassName: "from-[#d7e5e7] via-[#8c8c84] to-[#2b2b2b]",
-  },
-];
+type ProjectMeta = {
+  page: number;
+  limit: number;
+  total: number;
+};
 
-export function PortfolioTable() {
-  const [projectList, setProjectList] = useState(initialProjects);
-  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
-  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+type ProjectApiResponse<T> = {
+  statusCode?: number;
+  success?: boolean;
+  status?: boolean;
+  message?: string;
+  error?: string;
+  meta?: ProjectMeta;
+  data?: T;
+};
 
-  const handleConfirmDelete = () => {
-    if (!deleteTarget) {
+type ProjectFormPayload = Parameters<
+  ComponentProps<typeof ProjectForm>["onSave"]
+>[0];
+
+const pageSize = 10;
+const projectsQueryKey = "admin-projects";
+
+function getApiBaseUrl() {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!apiBaseUrl) {
+    throw new Error("API base URL is not configured.");
+  }
+
+  return apiBaseUrl.replace(/\/+$/, "");
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+async function parseResponse<T>(response: Response, fallback: string) {
+  const data: ProjectApiResponse<T> | null = await response
+    .json()
+    .catch(() => null);
+
+  if (!response.ok || data?.success === false || data?.status === false) {
+    throw new Error(data?.message || data?.error || fallback);
+  }
+
+  if (!data) {
+    throw new Error(fallback);
+  }
+
+  return data;
+}
+
+async function fetchProjects({
+  page,
+  accessToken,
+}: {
+  page: number;
+  accessToken?: string;
+}) {
+  const url = new URL(`${getApiBaseUrl()}/project`);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("limit", String(pageSize));
+  url.searchParams.set("sortBy", "createdAt");
+  url.searchParams.set("sortOrder", "desc");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+  const data = await parseResponse<Project[]>(
+    response,
+    "Failed to fetch projects.",
+  );
+
+  return {
+    projects: data.data ?? [],
+    meta: data.meta ?? {
+      page,
+      limit: pageSize,
+      total: data.data?.length ?? 0,
+    },
+  };
+}
+
+async function createProject({
+  payload,
+  accessToken,
+}: {
+  payload: ProjectFormPayload;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/project`, {
+    method: "POST",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: buildProjectFormData(payload),
+  });
+
+  return parseResponse<unknown>(response, "Failed to create project.");
+}
+
+async function updateProject({
+  id,
+  payload,
+  accessToken,
+}: {
+  id: string;
+  payload: ProjectFormPayload;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/project/${id}`, {
+    method: "PUT",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: buildProjectFormData(payload),
+  });
+
+  return parseResponse<Project>(response, "Failed to update project.");
+}
+
+async function deleteProject({
+  id,
+  accessToken,
+}: {
+  id: string;
+  accessToken?: string;
+}) {
+  const response = await fetch(`${getApiBaseUrl()}/project/${id}`, {
+    method: "DELETE",
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+  });
+
+  return parseResponse<Project>(response, "Failed to delete project.");
+}
+
+function buildProjectFormData(payload: ProjectFormPayload) {
+  const formData = new FormData();
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value instanceof File) {
+      formData.append(key, value);
       return;
     }
 
-    setProjectList((currentProjects) =>
-      currentProjects.filter((project) => project.id !== deleteTarget.id),
-    );
-    setDeleteTarget(null);
+    if (typeof value === "string" && value.trim()) {
+      formData.append(key, value);
+    }
+  });
+
+  return formData;
+}
+
+function formatDate(dateValue?: string) {
+  if (!dateValue) return "-";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(dateValue));
+}
+
+function getShortText(value: string | null | undefined, fallback = "-") {
+  if (!value) return fallback;
+
+  return value.replace(/<[^>]*>/g, "").trim() || fallback;
+}
+
+export function PortfolioTable() {
+  const { data: session, status: sessionStatus } = useSession();
+  const queryClient = useQueryClient();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [editTarget, setEditTarget] = useState<Project | null>(null);
+  const [isProjectFormOpen, setIsProjectFormOpen] = useState(false);
+  const accessToken = session?.accessToken;
+
+  const projectsQuery = useQuery({
+    queryKey: [projectsQueryKey, currentPage, accessToken],
+    queryFn: () => fetchProjects({ page: currentPage, accessToken }),
+    enabled: sessionStatus !== "loading",
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (payload: ProjectFormPayload) =>
+      createProject({ payload, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "Project created successfully.");
+      setIsProjectFormOpen(false);
+      setCurrentPage(1);
+      await queryClient.invalidateQueries({ queryKey: [projectsQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to create project."));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteProject({ id, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "Project deleted successfully.");
+      setDeleteTarget(null);
+      await queryClient.invalidateQueries({ queryKey: [projectsQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to delete project."));
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: ProjectFormPayload;
+    }) => updateProject({ id, payload, accessToken }),
+    onSuccess: async (data) => {
+      toast.success(data.message || "Project updated successfully.");
+      setEditTarget(null);
+      await queryClient.invalidateQueries({ queryKey: [projectsQueryKey] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "Failed to update project."));
+    },
+  });
+
+  const projects = projectsQuery.data?.projects ?? [];
+  const meta = projectsQuery.data?.meta;
+  const totalItems = meta?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+  useEffect(() => {
+    if (!projectsQuery.isSuccess || currentPage <= totalPages) return;
+    setCurrentPage(totalPages);
+  }, [currentPage, projectsQuery.isSuccess, totalPages]);
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget._id);
   };
 
   if (isProjectFormOpen) {
     return (
       <ProjectForm
         onDiscard={() => setIsProjectFormOpen(false)}
-        onSave={() => setIsProjectFormOpen(false)}
+        onSave={(payload) => createMutation.mutate(payload)}
+        isSaving={createMutation.isPending}
       />
     );
+  }
+
+  if (editTarget) {
+    return (
+      <EditProjectForm
+        project={editTarget}
+        onDiscard={() => setEditTarget(null)}
+        onSave={(payload) =>
+          updateMutation.mutate({ id: editTarget._id, payload })
+        }
+        isSaving={updateMutation.isPending}
+      />
+    );
+  }
+
+  if (sessionStatus === "loading" || projectsQuery.isLoading) {
+    return <PortfolioTableSkeleton />;
   }
 
   return (
@@ -157,105 +319,142 @@ export function PortfolioTable() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[#5f5f5f]">
-        <Table>
-          <TableHeader className="bg-[#E6E6E61A]">
-            <TableRow className="border-[#3a3a3a] hover:bg-transparent">
-              <TableHead className="w-[330px] pl-5 text-left text-[14px] text-white">
-                Projects
-              </TableHead>
-              <TableHead className="w-[170px] text-center text-[14px] text-white">
-                Client
-              </TableHead>
-              <TableHead className="w-[190px] text-center text-[14px] text-white">
-                Location
-              </TableHead>
-              <TableHead className="w-[230px] text-center text-[14px] text-white">
-                Category
-              </TableHead>
-              <TableHead className="w-[170px] text-center text-[14px] text-white">
-                Completion
-              </TableHead>
-              <TableHead className="w-[110px] text-center text-[14px] text-white">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {projectList.map((project) => (
-              <TableRow
-                key={project.id}
-                className="border-[#5b5b5b] hover:bg-[#181818]"
-              >
-                <TableCell className="w-[330px] py-2 pl-5 align-middle">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "h-8 w-10 shrink-0 rounded bg-gradient-to-br",
-                        project.thumbnailClassName,
-                      )}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-medium leading-5 text-white">
-                        {project.name}
-                      </p>
-                      <p className="truncate text-xs leading-4 text-[#b8b8b8]">
-                        {project.summary}
-                      </p>
-                    </div>
-                  </div>
-                </TableCell>
-
-                <TableCell className="w-[170px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
-                  {project.client}
-                </TableCell>
-                <TableCell className="w-[190px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
-                  {project.location}
-                </TableCell>
-                <TableCell className="w-[230px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
-                  {project.category}
-                </TableCell>
-                <TableCell className="w-[170px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
-                  {project.completion}
-                </TableCell>
-
-                <TableCell className="w-[110px] py-4 text-center align-middle">
-                  <div className="flex items-center justify-center gap-4 text-white">
-                    <button
-                      type="button"
-                      className="transition-colors hover:text-[#c9850d]"
-                      aria-label={`Edit ${project.name}`}
-                    >
-                      <PencilLine className="size-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(project)}
-                      className="transition-colors hover:text-[#ff4d62]"
-                      aria-label={`Delete ${project.name}`}
-                    >
-                      <Trash2 className="size-5" />
-                    </button>
-                  </div>
-                </TableCell>
+      {projectsQuery.isError ? (
+        <div className="rounded-lg border border-[#5f5f5f] bg-[#181818] px-5 py-10 text-center text-sm text-[#f5b5b5]">
+          {getErrorMessage(projectsQuery.error, "Failed to fetch projects.")}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-[#5f5f5f]">
+          <Table>
+            <TableHeader className="bg-[#E6E6E61A]">
+              <TableRow className="border-[#3a3a3a] hover:bg-transparent">
+                <TableHead className="w-[360px] pl-5 text-left text-[14px] text-white">
+                  Projects
+                </TableHead>
+                <TableHead className="w-[310px] text-center text-[14px] text-white">
+                  Scope
+                </TableHead>
+                <TableHead className="w-[160px] text-center text-[14px] text-white">
+                  Timeline
+                </TableHead>
+                <TableHead className="w-[170px] text-center text-[14px] text-white">
+                  Created
+                </TableHead>
+                <TableHead className="w-[110px] text-center text-[14px] text-white">
+                  Action
+                </TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHeader>
+
+            <TableBody>
+              {projects.length === 0 ? (
+                <TableRow className="border-[#5b5b5b] hover:bg-transparent">
+                  <TableCell
+                    colSpan={5}
+                    className="py-10 text-center text-sm text-[#bdbdbd]"
+                  >
+                    No projects found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                projects.map((project) => (
+                  <TableRow
+                    key={project._id}
+                    className="border-[#5b5b5b] hover:bg-[#181818]"
+                  >
+                    <TableCell className="w-[360px] py-2 pl-5 align-middle">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded bg-[#2f2f2f]">
+                          {project.coverImage ? (
+                            <Image
+                              src={project.coverImage}
+                              alt={project.title ?? "Project cover"}
+                              width={48}
+                              height={40}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-[10px] text-[#8a8a8a]">
+                              No Image
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-base font-medium leading-5 text-white">
+                            {project.title ?? "Untitled project"}
+                          </p>
+                          <p className="truncate text-xs leading-4 text-[#b8b8b8]">
+                            {getShortText(project.description, "No description")}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="w-[310px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
+                      <div className="mx-auto max-w-[280px] truncate">
+                        {getShortText(project.scope)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="w-[160px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
+                      {getShortText(project.timeline)}
+                    </TableCell>
+                    <TableCell className="w-[170px] py-4 text-center align-middle text-[14px] text-[#d0d0d0]">
+                      {formatDate(project.createdAt)}
+                    </TableCell>
+
+                    <TableCell className="w-[110px] py-4 text-center align-middle">
+                      <div className="flex items-center justify-center gap-4 text-white">
+                        <button
+                          type="button"
+                          onClick={() => setEditTarget(project)}
+                          className="transition-colors hover:text-[#c9850d]"
+                          aria-label={`Edit ${
+                            project.title ?? "project"
+                          }`}
+                        >
+                          <PencilLine className="size-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(project)}
+                          className="transition-colors hover:text-[#ff4d62]"
+                          aria-label={`Delete ${
+                            project.title ?? "project"
+                          }`}
+                        >
+                          <Trash2 className="size-5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Pagination
+        currentPage={currentPage}
+        totalItems={totalItems}
+        pageSize={pageSize}
+        onPageChange={setCurrentPage}
+      />
 
       <DeleteConfirmationModal
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !deleteMutation.isPending) {
             setDeleteTarget(null);
           }
         }}
         onConfirm={handleConfirmDelete}
+        isConfirming={deleteMutation.isPending}
         description={
           deleteTarget
-            ? `Are you sure you want to delete ${deleteTarget.name}?`
+            ? `Are you sure you want to delete ${
+                deleteTarget.title ?? "this project"
+              }?`
             : "Are you sure you want to delete this project?"
         }
       />
