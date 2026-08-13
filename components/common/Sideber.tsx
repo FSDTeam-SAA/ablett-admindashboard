@@ -14,12 +14,13 @@ import {
   Settings,
   Wrench,
   X,
+  CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -33,17 +34,35 @@ const navigation = [
   { name: "Dashboard Overview", href: "/", icon: LayoutDashboard },
   // { name: "Services Management", href: "/services", icon: FileText },
   { name: "Portfolio Management", href: "/portfolio", icon: Wrench },
+  { name: "Bookig Management", href: "/bookings", icon: CalendarDays },
   { name: "Inquiries Management", href: "/inquiries", icon: MessageSquare },
   { name: "FAQ's", href: "/faqs", icon: CircleHelp },
   { name: "Messages", href: "/messages", icon: MessageSquareText },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
+function getInitials(name?: string | null, email?: string | null) {
+  const value = name?.trim() || email?.trim() || "Admin";
+  const parts = value.split(/\s+/).filter(Boolean);
+
+  if (parts.length > 1) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return value.slice(0, 2).toUpperCase();
+}
+
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const displayName =
+    session?.user?.fullName || session?.user?.name || "Admin";
+  const displayEmail = session?.user?.email || "No email found";
+  const profileImage = session?.user?.profileImage || session?.user?.image;
+  const initials = getInitials(displayName, displayEmail);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -144,16 +163,19 @@ export function Sidebar() {
         <div className="mt-auto px-4 pb-4 pt-6">
           <div className="mb-3 flex items-center gap-2">
             <Avatar className="size-12 border border-[#3a3a3a]">
+              {profileImage ? (
+                <AvatarImage src={profileImage} alt={displayName} />
+              ) : null}
               <AvatarFallback className="bg-[#4b372f] text-[14px] font-semibold text-white">
-                JW
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
               <p className="truncate text-[18px] font-semibold leading-3 text-[#f1f1f1]">
-                Jenny Wilson
+                {displayName}
               </p>
               <p className="truncate text-[14px] mt-3 leading-3 text-[#8a8a8a]">
-                example@example.com
+                {displayEmail}
               </p>
             </div>
           </div>

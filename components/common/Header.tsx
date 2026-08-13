@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const headerContent: Record<string, { title: string; description: string }> = {
   "/": {
@@ -59,9 +60,26 @@ function getHeaderContent(pathname: string) {
   return matchedPath ? headerContent[matchedPath] : headerContent["/"];
 }
 
+function getInitials(name?: string | null, email?: string | null) {
+  const value = name?.trim() || email?.trim() || "Admin";
+  const parts = value.split(/\s+/).filter(Boolean);
+
+  if (parts.length > 1) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+
+  return value.slice(0, 2).toUpperCase();
+}
+
 export default function Header() {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const { title, description } = getHeaderContent(pathname);
+  const displayName =
+    session?.user?.fullName || session?.user?.name || "Admin";
+  const displayEmail = session?.user?.email || "";
+  const profileImage = session?.user?.profileImage || session?.user?.image;
+  const initials = getInitials(displayName, displayEmail);
 
   return (
     <header className="fixed left-0 right-0 top-0 z-50 flex h-[90px] items-center justify-between gap-4  bg-[#E6E6E61A] px-6 lg:left-[300px]">
@@ -76,7 +94,12 @@ export default function Header() {
 
       <div className="flex shrink-0 items-center gap-3">
         <Avatar className="size-11 border-2 border-white shadow-sm">
-          <AvatarFallback>AD</AvatarFallback>
+          {profileImage ? (
+            <AvatarImage src={profileImage} alt={displayName} />
+          ) : null}
+          <AvatarFallback className="bg-[#4b372f] font-semibold text-white">
+            {initials}
+          </AvatarFallback>
         </Avatar>
       </div>
     </header>

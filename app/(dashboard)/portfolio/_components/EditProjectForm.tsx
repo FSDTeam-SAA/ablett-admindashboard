@@ -33,7 +33,6 @@ type EditProjectFormProps = {
 
 const textFieldKeys: ProjectField[] = [
   "title",
-  "description",
   "scope",
   "challenge",
   "a7Solution",

@@ -49,6 +49,7 @@ export interface LoginResponse {
       updatedAt?: string;
       __v?: number;
       profileImage?: string;
+      profilePicture?: string;
       refreshToken?: string;
       accessRoutes?: string[];
     };
@@ -128,6 +129,7 @@ export const authOptions: AuthOptions = {
             user.name?.trim() ||
             [firstName, lastName].filter(Boolean).join(" ") ||
             user.email;
+          const profileImage = user.profilePicture || user.profileImage;
 
           return {
             id: user._id,
@@ -144,8 +146,8 @@ export const authOptions: AuthOptions = {
             status: user.status,
             tag: user.tag,
             createdAt: user.createdAt,
-            image: user.profileImage,
-            profileImage: user.profileImage,
+            image: profileImage,
+            profileImage,
             updatedAt: user.updatedAt,
             version: user.__v,
             accessRoutes: user.accessRoutes ?? [],
@@ -204,6 +206,7 @@ export const authOptions: AuthOptions = {
       }
 
       if (trigger === "update" && session?.user) {
+        token.email = session.user.email ?? token.email;
         token.name = session.user.name ?? token.name;
         token.fullName = session.user.fullName ?? token.fullName ?? token.name;
         token.image =
