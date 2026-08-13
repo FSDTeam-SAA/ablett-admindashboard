@@ -5,7 +5,6 @@ import { ImagePlus, Loader2, Upload, X } from "lucide-react";
 
 export type ProjectField =
   | "title"
-  | "description"
   | "scope"
   | "challenge"
   | "a7Solution"
@@ -32,7 +31,6 @@ type ProjectFormProps = {
 
 const initialValues: Record<ProjectField, string> = {
   title: "",
-  description: "",
   scope: "",
   challenge: "",
   a7Solution: "",
@@ -243,22 +241,6 @@ export function ProjectForm({
               )}
             </div>
           ))}
-
-          <div className="space-y-2 sm:col-span-2">
-            <label
-              htmlFor="project-description"
-              className="text-base font-medium text-white"
-            >
-              Description
-            </label>
-            <textarea
-              id="project-description"
-              value={values.description}
-              onChange={(event) => updateValue("description", event.target.value)}
-              placeholder="Describe your project in detail"
-              className="min-h-[150px] w-full resize-none rounded border border-[#747474] bg-transparent px-4 py-4 text-sm leading-5 text-white outline-none transition-colors placeholder:text-[#8a8a8a] focus:border-[#c98313]"
-            />
-          </div>
         </div>
 
         <div className="flex flex-col gap-4">
