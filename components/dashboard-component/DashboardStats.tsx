@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Building2, CalendarDays, FileText, Wrench } from "lucide-react";
+import { Building2, CalendarDays, FileText } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 import { DashboardStatCard } from "./DashboardStatCard";
@@ -63,11 +63,11 @@ function buildStats(overview: DashboardOverview) {
       value: String(overview.totalProjects),
       icon: Building2,
     },
-    {
-      title: "Total Services",
-      value: String(overview.totalServices),
-      icon: Wrench,
-    },
+    // {
+    //   title: "Total Services",
+    //   value: String(overview.totalServices),
+    //   icon: Wrench,
+    // },
     {
       title: "Quote Requests",
       value: String(overview.quoteRequests),
@@ -105,7 +105,7 @@ export function DashboardStats() {
   );
 
   return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {stats.map((stat) => (
         <DashboardStatCard key={stat.title} {...stat} />
       ))}
