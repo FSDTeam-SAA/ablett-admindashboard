@@ -25,7 +25,7 @@ export function BookingsTableSkeleton() {
     <main className="space-y-4">
       <div className="overflow-hidden rounded-lg border border-[#5f5f5f] bg-[#101010]">
         <div className="overflow-x-auto">
-          <Table className="min-w-[1120px]">
+          <Table className="min-w-[1320px]">
             <TableHeader className="bg-[#E6E6E61A]">
               <TableRow className="border-[#3a3a3a] hover:bg-transparent">
                 <TableHead className="w-[170px] text-center text-[14px] text-white">
@@ -33,6 +33,9 @@ export function BookingsTableSkeleton() {
                 </TableHead>
                 <TableHead className="w-[210px] text-center text-[14px] text-white">
                   Project Location
+                </TableHead>
+                <TableHead className="w-[220px] text-center text-[14px] text-white">
+                  Description
                 </TableHead>
                 <TableHead className="w-[180px] text-center text-[14px] text-white">
                   Phone Number
@@ -63,6 +66,12 @@ export function BookingsTableSkeleton() {
                   </TableCell>
                   <TableCell className="w-[210px] py-5">
                     <SkeletonBlock className="mx-auto h-5 w-[160px]" />
+                  </TableCell>
+                  <TableCell className="w-[220px] py-5">
+                    <div className="space-y-2">
+                      <SkeletonBlock className="mx-auto h-4 w-[170px]" />
+                      <SkeletonBlock className="mx-auto h-4 w-[130px]" />
+                    </div>
                   </TableCell>
                   <TableCell className="w-[180px] py-5">
                     <SkeletonBlock className="mx-auto h-5 w-[130px]" />
