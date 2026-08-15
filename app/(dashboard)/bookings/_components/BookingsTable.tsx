@@ -351,7 +351,7 @@ export function BookingsTable() {
       ) : (
         <div className="overflow-hidden rounded-lg border border-[#5f5f5f] bg-[#101010]">
           <div className="overflow-x-auto">
-            <Table className="min-w-[1120px]">
+            <Table className="min-w-[1320px]">
               <TableHeader className="bg-[#E6E6E61A]">
                 <TableRow className="border-[#3a3a3a] hover:bg-transparent">
                   <TableHead className="w-[170px] text-center text-[14px] text-white">
@@ -359,6 +359,9 @@ export function BookingsTable() {
                   </TableHead>
                   <TableHead className="w-[210px] text-center text-[14px] text-white">
                     Project Location
+                  </TableHead>
+                  <TableHead className="w-[220px] text-center text-[14px] text-white">
+                    Description
                   </TableHead>
                   <TableHead className="w-[180px] text-center text-[14px] text-white">
                     Phone Number
@@ -382,7 +385,7 @@ export function BookingsTable() {
                 {bookings.length === 0 ? (
                   <TableRow className="border-[#5b5b5b] hover:bg-transparent">
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="py-10 text-center text-sm text-[#bdbdbd]"
                     >
                       No bookings found.
@@ -406,6 +409,11 @@ export function BookingsTable() {
                         <TableCell className="w-[210px] py-5 text-center align-middle text-[13px] text-[#D7D7D7]">
                           <div className="mx-auto max-w-[180px]">
                             {booking.projectLocation}
+                          </div>
+                        </TableCell>
+                        <TableCell className="w-[220px] py-5 text-center align-middle text-[13px] text-[#D7D7D7]">
+                          <div className="mx-auto max-w-[190px] whitespace-pre-wrap break-words leading-5">
+                            {booking.message || "-"}
                           </div>
                         </TableCell>
                         <TableCell className="w-[180px] py-5 text-center align-middle text-[13px] text-[#D7D7D7]">
